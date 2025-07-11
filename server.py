@@ -39,7 +39,6 @@ async def audio(request):
 
 app.router.add_get('/', index)
 app.router.add_get("/audio", audio )
-app.router.add_get("/video", video )
 app.router.add_static("/static/", path=STATIC_DIR, name="static")
 
 @sio.event()
