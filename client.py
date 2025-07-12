@@ -2,24 +2,24 @@ import asyncio
 import socketio
 import os
 import base64
-from datetime import datetime, timezone
+from datetime import datetime
 
 sio = socketio.AsyncClient()
 username = None
 
 def make_payload(receiver: str, content: str, msg_type: str):
     """Build our standard JSON envelope."""
-    # Default to text if type is not recognized
-    if msg_type.lower() not in ["text", "file"]:
-        msg_type = "text"
-    
-    return {
-        "sender_name": username,
-        "receiver_name": receiver,
-        "type": msg_type.lower(),
-        "data": content,
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
-    }
+    if msg_type != "text".lower() and  msg_type != "file".lower():
+        print("Invalid type")
+        return {}
+    else:
+        return {
+            "sender_name": username,
+            "receiver_name": receiver,
+            "type": msg_type,
+            "data": content,
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
 
 def make_file_payload(receiver: str, filepath: str):
     if not os.path.isfile(filepath):
@@ -73,36 +73,7 @@ async def chat_message(data):
         await _handle_incoming_file(data)
     else:
         print(f"[{data.get('sender_name','Unknown')}]: {data.get('data','')}")
-
-@sio.event
-async def chat_history(data):
-    """Handle chat history received from server"""
-    print()
-    print("=== CHAT HISTORY ===")
-    messages = data.get('messages', [])
-    for msg in reversed(messages):  # Show oldest first
-        username = msg.get('useruid','Unknown')
-        if msg.get('message_type') == 'file' and msg.get('filename'):
-            print(f"[{username}]: [FILE: {msg.get('filename')}]")
-        else:
-            print(f"[{username}]: {msg.get('message','')}")
-    print("=== END HISTORY ===")
-
-@sio.event
-async def room_history(data):
-    """Handle room history received from server"""
-    room = data.get('room', '')
-    print()
-    print(f"=== ROOM {room} HISTORY ===")
-    messages = data.get('messages', [])
-    for msg in reversed(messages):  # Show oldest first
-        username = msg.get('useruid','Unknown')
-        if msg.get('message_type') == 'file' and msg.get('filename'):
-            print(f"[ROOM {room} - {username}]: [FILE: {msg.get('filename')}]")
-        else:
-            print(f"[ROOM {room} - {username}]: {msg.get('message','')}")
-    print("=== END HISTORY ===")
-
+ 
 @sio.event
 async def private_message(data):
     print()
@@ -142,12 +113,54 @@ async def adventure_message(data):
     sender_name = data.get('sender_name', '')
     sender_role = data.get('sender_role', '')
     message     = data.get('message', '')
-    msg_type    = data.get('type', 'message')
+    action_result= data.get("action_result",'')
+    ai_narration= data.get( "ai_narration",'')
+    timestamp: data.get("timestamp", "")
+    msg_type= data.get("type","")
 
-    if msg_type in ('join', 'dm_disconnect', 'player_disconnect'):
-        print(f"[ADVENTURE {room_id}] ⚠️  {message}")
+    if msg_type in ('join', 'action',' dm_disconnect', 'player_disconnect'):
+        print(f"[ADVENTURE {room_id}]  {message}\n sender: {sender_name}\n role:{sender_role}\n action:{action_result}\n narration:{ai_narration}")
     else:
         print(f"[ADVENTURE {room_id} - {sender_name} ({sender_role})]: {message}")
+
+@sio.event
+async def turn_summary(data):
+    print("Turn Summary received:")
+    
+    room_id = data.get("room_id")
+    current_turn = data.get("current_turn")
+    turn_order = data.get("turn_order")
+    players = data.get("players")
+    story_state = data.get("story_state", {})
+    npcs = data.get("npcs")
+    enemies = data.get("enemies")
+
+    print(f"Room ID: {room_id}")
+    print(f"Current Turn: {current_turn}")
+    print(f"Turn Order: {turn_order}")
+    
+    print("\nPlayers:")
+    for sid, player in players.items():
+        print(f" - SID: {sid}, Name: {player.get('name')}, Status: {player.get('status')}")
+    
+    print("\nStory State:")
+    print(f"  Scene: {story_state.get('current_scene')}")
+    print(f"  Environment: {story_state.get('environment')}")
+    print(f"  Time: {story_state.get('time')}")
+    print(f"  Weather: {story_state.get('weather')}")
+    print(f"  Encounter Active: {story_state.get('encounter_active')}")
+
+@sio.event
+def turn_notification(data):
+    player_name = data.get("player_name")
+    message = data.get("message")
+    print(f"[TURN] {message} (Player: {player_name})")
+
+@sio.event
+def player_stats(data):
+    print("[PLAYER STATS RECEIVED]")
+    for stat, value in data.items():
+        print(f"{stat}: {value}")
 
 @sio.event
 async def adventure_info(data):
@@ -171,19 +184,17 @@ async def disconnect():
 
 async def send_messages():
     print("Commands:")
-    print("  <message>                                 – send text message to global chat")
-    print("  text <message>                            – send text message to global chat")
-    print("  file <filepath>                           – send file to global chat")
+    print("  <type> <message>                          – global chat")
     print("  /users                                    – list users")
     print("  /rooms                                    – list rooms joined")
-    print("  /history                                  – get global chat history")
     print("  /pm <user> <type> <message>               – private message")
     print("  /join <room>                              – join a room")
     print("  /leave <room>                             – leave a room")
     print("  /room <room> <type> <message>             – room chat")
-    print("  /startadventure <story> <u1,u2,...>       – Start D&D adventure")
+    print("  /startadventure       – Start D&D adventure")
     print("  /joinadventure <room_id> <role>           – Join adventure with role")
     print("  /adventure <room_id> <type> <message>     –  Send message to adventure room")
+    print(" /adventureStats <room_id>                          - get player stats")
     print("  /adventureinfo <room_id>                  – Get adventure room info")
     print("  /exit or /quit                            – exit client\n")
 
@@ -207,10 +218,6 @@ async def send_messages():
 
             if cmd == "/rooms":
                 await sio.emit("check_rooms")
-                continue
-
-            if cmd == "/history":
-                await sio.emit("get_chat_history")
                 continue
 
             if cmd == "/pm":
@@ -253,24 +260,34 @@ async def send_messages():
                 _, room, msg_type, msg = parts
                 if msg_type == "file":
                     try:
-                        payload = make_file_payload(room, msg)
+                        payload = make_file_payload(user, msg)
                     except FileNotFoundError as e:
                         print(e)
                         continue
                 else:
-                    payload = make_payload(room, msg, msg_type)
+                    payload = make_payload(user, msg, msg_type)
 
                 await sio.emit("room_message", payload)               
                 continue
 
             if cmd == "/startadventure":
-                parts = raw.split(" ", 2)
-                if len(parts) < 3:
-                    print("Usage: /startadventure <story> <u1,u2,...>")
+                theme = input("Enter theme (optional): ").strip()
+                tonality = input("Enter tonality (optional): ").strip()
+                story = input("Enter story (optional): ").strip()
+                user_str = input("Enter comma-separated usernames (required): ").strip()
+
+                users = [u.strip() for u in user_str.split(",") if u.strip()]
+
+                if not users:
+                    print("Error: No users provided.")
                     continue
-                _, story, us = parts
-                users = [u.strip() for u in us.split(",")]
-                await sio.emit("start_adventure", {"story": story, "users": users})
+
+                await sio.emit("start_adventure", {
+                    "theme": theme,
+                    "tonality": tonality,
+                    "story": story,
+                    "users": users
+                })
                 continue
 
             if cmd == "/joinadventure":
@@ -293,42 +310,33 @@ async def send_messages():
 
             if cmd == "/adventure":
                 # /adventure <room_id> <type> <message>
-                parts = raw.split(" ", 3)
-                if len(parts) < 4:
-                    print("Usage: /adventure <room_id> <type> <message>")
+                parts = raw.split(" ", 2)
+                if len(parts) < 3:
+                    print("Usage: /adventure <room_id> <message>")
                     continue
-                _, room_id, msg_type, msg = parts
-                if msg_type == "file":
-                    try:
-                        payload = make_file_payload(room_id, msg)
-                    except FileNotFoundError as e:
-                        print(e)
-                        continue
-                else:
-                    payload = make_payload(room_id, msg, msg_type)
+                _, room_id, msg = parts
+                payload = {
+                        "room_id":room_id,
+                        "message":msg
+                        }
 
                 await sio.emit("adventure_message", payload)               
                 continue   
-
-            # --- global chat: <type> <message> OR just <message> ---
-            parts = raw.split(" ", 1)
-            if len(parts) == 1:
-                # Single word - treat as text message
-                msg_type = "text"
-                body = parts[0]
-            elif len(parts) == 2:
-                # Check if first part looks like a message type
-                potential_type = parts[0].lower()
-                if potential_type in ["text", "file"]:
-                    msg_type, body = parts
-                else:
-                    # Treat the whole thing as a text message
-                    msg_type = "text"
-                    body = raw
-            else:
-                print("Usage: <type> <message> for global chat, or just <message> for text")
+            
+            if cmd== "/adventureStats":
+                parts = raw.split(" ", 2)
+                if len(parts) < 2:
+                    print("Usage: /adventure <room_id>")
+                room_id= parts
+                await sio.emit("get_stats", room_id)
                 continue
-                
+
+            # --- global chat: <type> <message> ---
+            parts = raw.split(" ", 1)
+            if len(parts) < 2:
+                print("Usage: <type> <message> for global chat")
+                continue
+            msg_type, body = parts
             # choose text vs file
             if msg_type == "file":
                 try:
