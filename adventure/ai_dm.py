@@ -33,7 +33,7 @@ class AIDungeonMaster:
         self.players = {}
         self.client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
-        api_key="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"
+        api_key=""
         )
         self.conversation_history = []
         self.system_prompt = self._build_system_prompt()
