@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PONG - Multiplayer</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hud" id="hud">
+      MULTIPLAYER PONG <br>
+      <div id="playerNames" style="font-size: 16px; margin: 8px 0;">
+        <span id="player1Name">Player 1</span> vs <span id="player2Name">Player 2</span>
+      </div>
+      <span id="score">0 &nbsp; | &nbsp; 0</span>
+      <div class="connection-status" id="connectionStatus">Enter your name to play</div>
+    </div>
+    <canvas id="pong" width="800" height="500"></canvas>
+  </div>
+  <div class="instructions" id="instructions">
+    <strong>Instructions:</strong><br>
+    Waiting for connection...<br>
+    First to 10 wins!
+  </div>
+  
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box">
+      <div id="modalMessage"></div>
+      <div class="modal-buttons">
+        <button class="modal-btn" id="playAgainBtn">Play Again</button>
+        <button class="modal-btn" id="quitBtn">Quit</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="name-modal" id="nameModal">
+    <div class="modal-box">
+      <div>Enter your name to join the game:</div>
+      <div>
+        <input type="text" class="name-input" id="nameInput" placeholder="Your name..." maxlength="20">
+        <button class="modal-btn" id="joinGameBtn">Join Game</button>
+      </div>
+    </div>
+  </div>
+
+  <script src = 'script.js'></script>
+</body>
+</html>

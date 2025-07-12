@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TANK WARS - Retro Battle Arena</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+
+    <div class="main-menu" id="mainMenu">
+        <div class="menu-content">
+            <div class="menu-title">▲ TANK WARS ▲</div>
+            <div class="menu-subtitle">RETRO BATTLE ARENA</div>
+
+            <div class="menu-section">
+                <label class="menu-label">COMMANDER NAME:</label>
+                <input type="text" id="nameInput" class="name-input" placeholder="ENTER NAME..." maxlength="12">
+            </div>
+
+            <div class="menu-section">
+                <label class="menu-label">GAME MODE:</label>
+                <div class="game-mode-selector">
+                    <button class="mode-btn selected" data-mode="deathmatch">DEATHMATCH</button>
+                    <button class="mode-btn" data-mode="team">TEAM BATTLE</button>
+                    <button class="mode-btn" data-mode="capture">CAPTURE FLAG</button>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <label class="menu-label">TANK CLASS:</label>
+                <div class="tank-selector">
+                    <div class="tank-option selected" data-tank="light">
+                        <div>LIGHT TANK</div>
+                        <div style="font-size: 4px; margin-top: 5px;">SPEED: ████████░░<br>ARMOR: ██░░░░░░░░<br>FIREPOWER: ████░░░░░░</div>
+                    </div>
+                    <div class="tank-option" data-tank="medium">
+                        <div>MEDIUM TANK</div>
+                        <div style="font-size: 4px; margin-top: 5px;">SPEED: ████░░░░░░<br>ARMOR: ██████░░░░<br>FIREPOWER: ████████░░</div>
+                    </div>
+                    <div class="tank-option" data-tank="heavy">
+                        <div>HEAVY TANK</div>
+                        <div style="font-size: 4px; margin-top: 5px;">SPEED: ██░░░░░░░░<br>ARMOR: ██████████<br>FIREPOWER: ████████░░</div>
+                    </div>
+                    <div class="tank-option" data-tank="artillery">
+                        <div>ARTILLERY</div>
+                        <div style="font-size: 4px; margin-top: 5px;">SPEED: █░░░░░░░░░<br>ARMOR: ████░░░░░░<br>FIREPOWER: ██████████</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <label class="menu-label">ROOM OPTIONS:</label>
+                <input type="text" id="roomInput" class="room-input" placeholder="ROOM CODE (LEAVE EMPTY FOR MATCHMAKING)">
+                <div class="room-list" id="roomList" style="display: none;">
+                    <div class="room-item">LOADING ROOMS...</div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <button id="joinBtn" class="menu-btn">DEPLOY TANK</button>
+                <button id="refreshRoomsBtn" class="menu-btn">REFRESH ROOMS</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="respawn-modal" id="respawnModal">
+        ████ TANK DESTROYED ████<br>
+        <span id="respawnTimer">RESPAWNING IN 3...</span>
+    </div>
+
+    <div class="game-container" style="display: none;" id="gameContainer">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+
+        <div class="connection-status connecting" id="connectionStatus">
+            CONNECTING...
+        </div>
+
+        <div class="hud" id="hud">
+            <div>TANK: <span id="tankClass">LIGHT</span></div>
+            <div>HEALTH: <span id="health">100</span>/100</div>
+            <div>AMMO: <span id="ammo">∞</span></div>
+            <div>KILLS: <span id="kills">0</span></div>
+            <div>DEATHS: <span id="deaths">0</span></div>
+        </div>
+
+        <div class="team-info" id="teamInfo">
+            <div id="gameMode">DEATHMATCH MODE</div>
+            <div id="teamStatus">FREE FOR ALL</div>
+        </div>
+
+        <div class="leaderboard" id="leaderboard">
+            <div style="text-align: center; margin-bottom: 5px;">█ SCOREBOARD █</div>
+            <div id="leaderboardList">LOADING...</div>
+        </div>
+
+        <div class="controls">
+            <div>CONTROLS:</div>
+            <div>↑↓←→ MOVE & ROTATE</div>
+            <div>SPACE FIRE WEAPON</div>
+            <div>WASD ALT CONTROLS</div>
+            <div>ESC RETURN TO MENU</div>
+        </div>
+    </div>
+
+    <script src = 'script.js'></script>
+</body>
+</html>
