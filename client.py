@@ -50,6 +50,30 @@ async def _handle_incoming_file(data):
         f.write(content)
     print(f"\n[FILE RECEIVED] saved as '{save_path}'")
 
+def print_fields(obj, prefix=''):
+    """
+    Recursively prints all keys (and list indices) in a JSON-like object,
+    along with their values. Nested keys are shown as dot-separated paths.
+    """
+    if isinstance(obj, dict):
+        for key, val in obj.items():
+            path = f"{prefix}.{key}" if prefix else key
+            # If the value is a primitive, print it; otherwise recurse
+            if isinstance(val, (dict, list)):
+                print_fields(val, path)
+            else:
+                print(f"{path}: {val}")
+    elif isinstance(obj, list):
+        for idx, item in enumerate(obj):
+            path = f"{prefix}[{idx}]"
+            if isinstance(item, (dict, list)):
+                print_fields(item, path)
+            else:
+                print(f"{path}: {item}")
+    else:
+        # Shouldn't hit this for the top‐level call, but handles primitives
+        print(f"{prefix}: {obj}")
+
 @sio.event
 async def connect():
     print("\n[client] Connected to server")
@@ -118,8 +142,13 @@ async def adventure_message(data):
     timestamp: data.get("timestamp", "")
     msg_type= data.get("type","")
 
-    if msg_type in ('join', 'action',' dm_disconnect', 'player_disconnect'):
-        print(f"[ADVENTURE {room_id}]  {message}\n sender: {sender_name}\n role:{sender_role}\n action:{action_result}\n narration:{ai_narration}")
+    if msg_type in ('join','dm_disconnect', 'player_disconnect'):
+        print(f"[ADVENTURE {room_id}]  {message}\n" )
+
+    elif msg_type=='action':
+        print(f"[ADVENTURE {room_id}]  {message}\n sender: {sender_name}\n role:{sender_role}\n" )
+        print_fields(ai_narration)
+        
     else:
         print(f"[ADVENTURE {room_id} - {sender_name} ({sender_role})]: {message}")
 
@@ -368,3 +397,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
