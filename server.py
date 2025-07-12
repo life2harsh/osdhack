@@ -414,6 +414,14 @@ async def adventure_message(sid, data):
 async def get_adventure_info(sid, data):
     await adventure_handler.get_adventure_info(sid, data)
 
+@sio.event
+async def get_adventure_info(sid, data):
+    await adventure_handler.get_adventure_info(sid, data)
+
+@sio.event
+async def get_stats(sid, data):
+    await adventure_handler.handle_stats(sid, data)
+
 # Client disconnects
 @sio.event
 async def disconnect(sid):
