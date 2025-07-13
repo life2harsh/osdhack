@@ -7,7 +7,13 @@ from aiohttp import web
 from bidict import bidict
 import socketio
 from pathlib import Path
-from adventure_handler import AdventureHandler
+
+# Import custom modules
+from adventure.handler import AdventureHandler
+from adventure.player import Player, PlayerStats
+from adventure.ai_dm import AIDungeonMaster
+from adventure.dice import roll_dice
+
 from topic_analyzer import TopicAnalyzer
 from persistence.chatdb import (
     init_db, get_or_create_user, get_room_by_name, create_new_room, save_global_message,
@@ -790,6 +796,10 @@ async def adventure_message(sid, data):
 @sio.event
 async def get_adventure_info(sid, data):
     await adventure_handler.get_adventure_info(sid, data)
+
+@sio.event
+async def get_stats(sid, data):
+    await adventure_handler.handle_stats(sid, data)
 
 # Client disconnects
 @sio.event
