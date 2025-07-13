@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BBS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="terminal-container">
+        <div class="retro-cursor" id="retroCursor">
+            <div class="cursor-block"></div>
+        </div>
+        
+        <div class="crt-frame">
+            <div class="screen-bezel">
+                <div class="terminal-screen">
+                    <div class="header">
+                        <h1>RobCo Industries (TM) Termlink</h1>
+                        <div class="subtitle">BBS NETWORK ACCESS</div>
+                    </div>
+                    
+                    <div class="main-interface">
+                        <div class="terminal-window">
+                            <div class="window-title">SYSTEM OUTPUT</div>
+                            <div class="terminal-content" id="messages">
+                                <div class="loading-bar"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="control-panel">
+                            <div class="status-section">
+                                <h3>CONNECTION STATUS</h3>
+                                <div class="connection-indicator">
+                                    <div class="led-indicator" id="statusLed"></div>
+                                    <span id="connectionStatus">OFFLINE</span>
+                                </div>
+                                
+                                <div class="input-group" id="loginSection">
+                                    <input type="text" id="usernameInput" class="fallout-input" placeholder="ENTER USERNAME" maxlength="16">
+                                    <button class="fallout-btn" onclick="initializeConnection()">CONNECT</button>
+                                </div>
+                                
+                                <div id="commandSection" style="display: none;">
+                                    <div class="quick-actions">
+                                        <button class="quick-btn" onclick="executeQuickCommand('/users')">USERS</button>
+                                        <button class="quick-btn" onclick="executeQuickCommand('/rooms')">ROOMS</button>
+                                        <button class="quick-btn" onclick="showAdventureHelp()">HELP</button>
+                                        <button class="quick-btn" onclick="clearTerminal()">CLEAR</button>
+                                    </div>
+                                    
+                                    <div class="input-group">
+                                        <div class="command-area">
+                                            <input type="text" id="commandInput" class="fallout-input" placeholder="ENTER COMMAND" onkeypress="handleCommandInput(event)" style="flex: 1;">
+                                            <button class="fallout-btn" onclick="executeCommand()" style="padding: 8px 16px;">SEND</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="help-text">
+                                        QUICK ACCESS: /pm user msg | /join room | /adventure room msg
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="status-bar" id="statusBar">
+                        SYSTEM STATUS: OFFLINE | TIME: <span id="systemTime"></span><span class="blinking-cursor">_</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src = '/static/script.js'> </script>
+</body>
+</html>
