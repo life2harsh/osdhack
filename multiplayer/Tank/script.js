@@ -119,7 +119,7 @@ const canvas = document.getElementById('gameCanvas');
 
         function connectToServer() {
             try {
-                ws = new WebSocket('ws://localhost:8765');
+                ws = new WebSocket('http://jha.jpoop.in:6900');
 
                 ws.onopen = () => {
                     connected = true;
