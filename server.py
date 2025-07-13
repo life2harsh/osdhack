@@ -783,22 +783,27 @@ async def room_message(sid, data):
 # D&D Adventure Events
 @sio.event
 async def start_adventure(sid, data):
+    print("start_adventure")
     await adventure_handler.start_adventure(sid, data)
 
 @sio.event
 async def join_adventure(sid, data):
+    print("join_adventure")
     await adventure_handler.join_adventure(sid, data)
 
 @sio.event
 async def adventure_message(sid, data):
+    print("adventure_message")
     await adventure_handler.send_adventure_message(sid, data)
 
 @sio.event
 async def get_adventure_info(sid, data):
+    print("get_adventure_info")
     await adventure_handler.get_adventure_info(sid, data)
 
 @sio.event
 async def get_stats(sid, data):
+    print("get_stats")
     await adventure_handler.handle_stats(sid, data)
 
 # Client disconnects

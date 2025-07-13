@@ -144,7 +144,7 @@ def get_global_messages_with_users(limit: int = 50) -> List[Dict[str, Any]]:
     """Get global messages with user information"""
     with get_db() as db:
         cur = db.execute(
-            '''SELECT gm.*, u.useruid as username 
+            '''SELECT gm.*, u.useruid 
                FROM global_messages gm 
                JOIN users u ON gm.user_id = u.id 
                ORDER BY gm.created_at DESC LIMIT ?''',
@@ -156,7 +156,7 @@ def get_room_messages_with_users(room_id: int, limit: int = 50) -> List[Dict[str
     """Get room messages with user information"""
     with get_db() as db:
         cur = db.execute(
-            '''SELECT rm.*, u.useruid as username 
+            '''SELECT rm.*, u.useruid 
                FROM room_messages rm 
                JOIN users u ON rm.user_id = u.id 
                WHERE rm.room_id = ? 
@@ -169,7 +169,7 @@ def get_private_messages_with_users(inbox_uid: str, limit: int = 50) -> List[Dic
     """Get private messages with user information"""
     with get_db() as db:
         cur = db.execute(
-            '''SELECT m.*, u.useruid as username 
+            '''SELECT m.*, u.useruid 
                FROM messages m 
                JOIN users u ON m.user_id = u.id 
                WHERE m.inbox_uid = ? 
@@ -182,7 +182,7 @@ def get_adventure_messages_with_users(adventure_id: int, limit: int = 50) -> Lis
     """Get adventure messages with user information"""
     with get_db() as db:
         cur = db.execute(
-            '''SELECT am.*, u.useruid as username 
+            '''SELECT am.*, u.useruid 
                FROM adventure_messages am 
                JOIN users u ON am.user_id = u.id 
                WHERE am.adventure_id = ? 
@@ -283,7 +283,7 @@ def get_adventure_participants(adventure_id: int) -> List[Dict[str, Any]]:
     """Get adventure participants"""
     with get_db() as db:
         cur = db.execute(
-            '''SELECT ap.*, u.useruid as username 
+            '''SELECT ap.*, u.useruid 
                FROM adventure_participants ap 
                JOIN users u ON ap.user_id = u.id 
                WHERE ap.adventure_id = ?''',
