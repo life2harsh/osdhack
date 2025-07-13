@@ -85,5 +85,8 @@ venv.bak/
 # Old
 old/
 
-#Chat Database
+#Chat and Auth Databases
 *.sqlite3
+
+# API keys
+secrets.txt
