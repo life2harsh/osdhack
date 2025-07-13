@@ -2,6 +2,8 @@
 
 A modern reimagining of classic Bulletin Board Systems (BBS) built with contemporary web technologies. RetroHub combines the nostalgic social experience of old-school BBSes with modern features like real-time chat, multiplayer games, AI-powered adventures, and voice communication.
 
+![Terminal Green Theme](assets/Terminal_Green.jpeg)
+
 ## Features
 
 ### Core Communication
@@ -12,14 +14,30 @@ A modern reimagining of classic Bulletin Board Systems (BBS) built with contempo
 - **Voice Chat**: Integrated Jitsi Meet voice rooms for real-time audio communication
 - **User Authentication**: Secure user registration and login system with session management
 
+<details>
+<summary>🎙️ Voice Chat Interface</summary>
+
+![Voice Chat Interface](assets/Voice_Chat.png)
+
+</details>
+
 ### Gaming Platform
 
 - **Retro Arcade Games**:
   - **Gee-Bee**: Classic breakout-style game with retro aesthetics
   - **Pac-Man**: Full recreation of the classic arcade game
+
+![Gee-Bee Game](assets/gee-bee.png) ![Pac-Man Game](assets/pacman.png)
+
 - **Multiplayer Games**:
   - **Pong**: Real-time multiplayer Pong with spectator mode
   - **Tank Wars**: Advanced multiplayer tank battle game featuring:
+
+![Pong Game](assets/pong.png)
+
+![Tank Wars Start Screen](assets/Tank_Startscreen.png)
+
+![Tank Wars Gameplay](assets/Tank_Gameplay.png)
     - Multiple tank classes (Light, Medium, Heavy, Artillery)
     - Various game modes (Deathmatch, Team Battle, Capture the Flag)
     - Real-time physics and combat systems
@@ -39,6 +57,14 @@ A modern reimagining of classic Bulletin Board Systems (BBS) built with contempo
 - **SQLite Database**: Persistent storage for users, messages, and game data
 - **Modular Design**: Clean separation between chat, games, and adventure systems
 - **Cross-Platform Client**: Web-based interface accessible from any modern browser
+
+## Visual Themes
+
+RetroHub offers multiple visual themes to enhance the retro BBS experience:
+
+![Terminal Green](assets/Terminal_Green.jpeg) ![Amber Fallout](assets/Amber_Fallout.jpeg)
+
+![Dark Contrast](assets/Dark_Contrast.jpeg) ![White Contrast](assets/White_Contrast.jpeg)
 
 ## Installation
 
