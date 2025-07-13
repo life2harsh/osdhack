@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Terminal Voice Chat</title>
+  <script src="https://meet.jit.si/external_api.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono:wght@400&display=swap');
+
+    :root {
+      --primary: #cc7700;
+      --primary-dark: #996600;
+      --primary-light: #ffaa33;
+      --primary-shadow: rgba(204, 119, 0, 0.3);
+      --bg-primary: #0a0a0a;
+      --bg-secondary: #1a1a1a;
+      --text-primary: #cc7700;
+      --text-secondary: #ffaa33;
+      --border-primary: #cc7700;
+      --led-active: #cc7700;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg-primary);
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+      height: 100vh;
+      color: var(--text-primary);
+      cursor: none;
+    }
+
+    *, *:hover, *:focus, *:active {
+      cursor: none !important;
+    }
+
+    .terminal-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: 
+        radial-gradient(circle at 20% 20%, var(--primary-shadow) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, var(--primary-shadow) 0%, transparent 50%),
+        linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .retro-cursor {
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
+      z-index: 9999;
+      mix-blend-mode: difference;
+    }
+
+    .cursor-block {
+      width: 12px;
+      height: 16px;
+      background: var(--primary);
+      box-shadow: 
+        0 0 10px var(--primary-shadow),
+        inset 0 0 3px rgba(255, 255, 255, 0.3);
+      animation: cursor-pulse 1.5s infinite;
+      border-radius: 1px;
+    }
+
+    @keyframes cursor-pulse {
+      0%, 100% { 
+        opacity: 1; 
+        transform: scale(1);
+      }
+      50% { 
+        opacity: 0.7; 
+        transform: scale(0.95);
+      }
+    }
+
+    .crt-frame {
+      position: relative;
+      width: 95%;
+      height: 95%;
+      background: #222;
+      border: 8px solid #444;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 
+        inset 0 0 100px rgba(0, 0, 0, 0.8),
+        0 0 50px var(--primary-shadow),
+        inset 0 0 0 2px #666;
+    }
+
+    .screen-bezel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      background: var(--bg-primary);
+      border: 2px solid var(--primary-dark);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .terminal-screen {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: 
+        linear-gradient(180deg, 
+          var(--primary-shadow) 0%, 
+          transparent 50%, 
+          var(--primary-shadow) 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      min-height: 0;
+    }
+
+    .terminal-screen::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        var(--primary-shadow) 2px,
+        var(--primary-shadow) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.3;
+    }
+
+    .terminal-screen::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(
+        ellipse at center,
+        transparent 60%,
+        rgba(0, 0, 0, 0.9) 100%
+      );
+      pointer-events: none;
+      z-index: 1001;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 1002;
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      font-size: 2.5em;
+      font-weight: normal;
+      color: var(--primary);
+      text-shadow: 
+        0 0 5px var(--primary-shadow),
+        0 0 10px var(--primary-shadow),
+        0 0 15px var(--primary-shadow);
+      letter-spacing: 4px;
+      margin-bottom: 10px;
+      animation: flicker 4s infinite alternate;
+    }
+
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+
+    .header .subtitle {
+      font-size: 1em;
+      color: var(--text-secondary);
+      text-shadow: 0 0 3px var(--primary-shadow);
+      letter-spacing: 2px;
+      border-top: 1px solid var(--primary);
+      border-bottom: 1px solid var(--primary);
+      padding: 5px 0;
+      margin: 0 auto;
+      width: fit-content;
+    }
+
+    .main-interface {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+      flex: 1;
+      position: relative;
+      z-index: 1002;
+      min-height: 0;
+    }
+
+    .controls-panel {
+      background: var(--primary-shadow);
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 400px;
+    }
+
+    .controls-panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 25px;
+      background: linear-gradient(
+        90deg,
+        var(--primary-dark) 0%,
+        var(--primary) 50%,
+        var(--primary-dark) 100%
+      );
+      border-bottom: 1px solid var(--primary);
+    }
+
+    .panel-title {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--bg-primary);
+      font-weight: bold;
+      font-size: 0.9em;
+      z-index: 1;
+    }
+
+    .controls-content {
+      padding: 35px 15px 15px 15px;
+      flex: 1;
+      overflow-y: auto;
+      font-size: 0.85em;
+      line-height: 1.4;
+    }
+
+    .fallout-input {
+      background: rgba(0, 0, 0, 0.7);
+      border: 2px solid var(--primary);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: 3px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9em;
+      width: 100%;
+      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+      caret-color: var(--primary);
+      margin-bottom: 15px;
+    }
+
+    .fallout-input:focus {
+      outline: none;
+      box-shadow: 
+        inset 0 0 10px rgba(0, 0, 0, 0.5),
+        0 0 15px var(--primary-shadow);
+      background: rgba(204, 119, 0, 0.1);
+    }
+
+    .control-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.9em;
+      color: var(--text-secondary);
+      text-shadow: 0 0 3px var(--primary-shadow);
+    }
+
+    .fallout-btn {
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      border: 2px solid var(--primary);
+      color: var(--bg-primary);
+      padding: 10px 20px;
+      border-radius: 3px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-shadow: none;
+      box-shadow: 
+        0 2px 5px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      width: 100%;
+      margin-bottom: 15px;
+    }
+
+    .fallout-btn:hover {
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      box-shadow: 
+        0 0 20px var(--primary-shadow),
+        0 2px 5px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .fallout-btn:active {
+      transform: translateY(1px);
+      box-shadow: 
+        0 0 10px var(--primary-shadow),
+        inset 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .share-link-container {
+      background: rgba(204, 119, 0, 0.1);
+      border: 1px solid var(--primary);
+      border-radius: 5px;
+      padding: 15px;
+      margin: 15px 0;
+      display: none;
+    }
+
+    .share-link-container.visible {
+      display: block;
+    }
+
+    .share-link-input {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--primary-dark);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: 3px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8em;
+      width: 100%;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      background: linear-gradient(135deg, #006600, #00aa00);
+      border: 2px solid #00ff00;
+      color: var(--bg-primary);
+      padding: 6px 12px;
+      border-radius: 3px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      width: 100%;
+    }
+
+    .copy-btn:hover {
+      background: linear-gradient(135deg, #00aa00, #00ff00);
+      box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+    }
+
+    .connection-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+      padding: 10px;
+      background: rgba(204, 119, 0, 0.05);
+      border: 1px solid var(--primary);
+      border-radius: 3px;
+    }
+
+    .led-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff0000;
+      box-shadow: 
+        0 0 5px #ff0000,
+        inset 0 0 5px rgba(0, 0, 0, 0.5);
+      animation: pulse-red 1s infinite;
+    }
+
+    .led-indicator.connected {
+      background: var(--led-active);
+      box-shadow: 
+        0 0 10px var(--primary-shadow),
+        inset 0 0 5px rgba(0, 0, 0, 0.5);
+      animation: pulse-primary 1s infinite;
+    }
+
+    @keyframes pulse-red {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes pulse-primary {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .connection-status {
+      color: var(--text-primary);
+      font-size: 0.9em;
+    }
+
+    .meet-container {
+      background: var(--primary-shadow);
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 400px;
+    }
+
+    .meet-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 25px;
+      background: linear-gradient(
+        90deg,
+        var(--primary-dark) 0%,
+        var(--primary) 50%,
+        var(--primary-dark) 100%
+      );
+      border-bottom: 1px solid var(--primary);
+    }
+
+    .meet-title {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--bg-primary);
+      font-weight: bold;
+      font-size: 0.9em;
+      z-index: 1;
+    }
+
+    #meet {
+      padding-top: 25px;
+      flex: 1;
+      background: var(--bg-primary);
+      position: relative;
+    }
+
+    .help-text {
+      font-size: 0.75em;
+      color: var(--primary-dark);
+      margin-top: 10px;
+      opacity: 0.8;
+      text-align: center;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 3px;
+    }
+
+    .status-bar {
+      background: linear-gradient(90deg, var(--primary-dark), var(--primary), var(--primary-dark));
+      color: var(--bg-primary);
+      padding: 8px;
+      text-align: center;
+      font-size: 0.8em;
+      font-weight: bold;
+      border-top: 2px solid var(--primary);
+      position: relative;
+      z-index: 1002;
+      flex-shrink: 0;
+    }
+
+    .blinking-cursor {
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    @media (max-width: 1024px) {
+      .main-interface {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+
+      .header h1 {
+        font-size: 2em;
+      }
+
+      .controls-panel {
+        min-height: 200px;
+      }
+    }
+
+    .controls-content::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .controls-content::-webkit-scrollbar-track {
+      background: rgba(204, 119, 0, 0.1);
+      border-radius: 4px;
+    }
+
+    .controls-content::-webkit-scrollbar-thumb {
+      background: var(--primary);
+      border-radius: 4px;
+      box-shadow: 0 0 5px var(--primary-shadow);
+    }
+
+    .controls-content::-webkit-scrollbar-thumb:hover {
+      background: var(--primary-light);
+    }
+  </style>
+</head>
+<body>
+  <div class="retro-cursor">
+    <div class="cursor-block"></div>
+  </div>
+
+  <div class="terminal-container">
+    <div class="crt-frame">
+      <div class="screen-bezel">
+        <div class="terminal-screen">
+          <div class="header">
+            <h1>TERMINAL VOICE CHAT</h1>
+            <div class="subtitle">SECURE COMMUNICATION SYSTEM</div>
+          </div>
+
+          <div class="main-interface">
+            <div class="controls-panel">
+              <div class="panel-title">COMM CONTROLS</div>
+              <div class="controls-content">
+                <div class="connection-indicator">
+                  <div class="led-indicator" id="connectionLed"></div>
+                  <div class="connection-status" id="connectionStatus">DISCONNECTED</div>
+                </div>
+
+                <label class="control-label">
+                  OPERATOR NAME
+                </label>
+                <input id="displayName" type="text" class="fallout-input" value="Anonymous Penguin">
+
+                <label class="control-label">
+                  CHANNEL ID
+                </label>
+                <input id="roomName" type="text" class="fallout-input" value="MyVoiceRoom123">
+
+                <button id="joinBtn" class="fallout-btn">ESTABLISH CONNECTION</button>
+
+                <div id="shareLinkContainer" class="share-link-container">
+                  <label class="control-label">SHARE FREQUENCY</label>
+                  <input id="shareLink" class="share-link-input" readonly>
+                  <button id="copyBtn" class="copy-btn">COPY LINK</button>
+                </div>
+
+                <div class="help-text">
+                  VOICE-ONLY MODE ACTIVE<br>
+                  AUDIO TRANSMISSION PROTOCOL<br>
+                  ENCRYPTION: ENABLED
+                </div>
+              </div>
+            </div>
+
+            <div class="meet-container">
+              <div class="meet-title">VOICE COMMUNICATION TERMINAL</div>
+              <div id="meet"></div>
+            </div>
+          </div>
+
+          <div class="status-bar">
+            TERMINAL STATUS: READY FOR TRANSMISSION <span class="blinking-cursor">█</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const domain = "meet.jit.si";
+    let api = null;
+
+    document.addEventListener('mousemove', (e) => {
+      const cursor = document.querySelector('.retro-cursor');
+      cursor.style.left = e.clientX + 'px';
+      cursor.style.top = e.clientY + 'px';
+    });
+
+    function getRoomFromURL() {
+      const p = new URLSearchParams(window.location.search);
+      return p.get("room");
+    }
+
+    function updateConnectionStatus(connected, message = "") {
+      const led = document.getElementById("connectionLed");
+      const status = document.getElementById("connectionStatus");
+
+      if (connected) {
+        led.classList.add("connected");
+        status.textContent = message || "CONNECTED";
+      } else {
+        led.classList.remove("connected");
+        status.textContent = message || "DISCONNECTED";
+      }
+    }
+
+    const roomParam = getRoomFromURL();
+    if (roomParam) {
+      document.getElementById("roomName").value = roomParam;
+      document.getElementById("shareLinkContainer").classList.add("visible");
+      document.getElementById("shareLink").value = window.location.href;
+    }
+
+    document.getElementById("joinBtn").onclick = () => {
+      const room = document.getElementById("roomName").value.trim();
+      const name = document.getElementById("displayName").value.trim() || "Guest";
+
+      if (!room) {
+        alert("Please enter a channel ID.");
+        return;
+      }
+
+      updateConnectionStatus(false, "CONNECTING...");
+
+      const shareUI = document.getElementById("shareLinkContainer");
+      shareUI.classList.add("visible");
+      document.getElementById("shareLink").value =
+        window.location.origin + window.location.pathname + "?room=" + encodeURIComponent(room);
+
+      if (api) {
+        api.dispose();
+      }
+
+      const options = {
+        roomName: room,
+        parentNode: document.getElementById("meet"),
+        configOverwrite: {
+          startWithVideoMuted: true,
+          startAudioOnly: true,
+          disableSimulcast: true,
+          prejoinPageEnabled: false
+        },
+        interfaceConfigOverwrite: {
+          VIDEO_LAYOUT_FIT: "nocrop",
+          TILE_VIEW_MAX_COLUMNS: 5,
+          TOOLBAR_BUTTONS: [
+            "microphone", "chat", "raisehand", "tileview", "settings", "hangup"
+          ],
+          SHOW_JITSI_WATERMARK: false,
+          SHOW_WATERMARK_FOR_GUESTS: false
+        },
+        userInfo: { displayName: name }
+      };
+
+      api = new JitsiMeetExternalAPI(domain, options);
+
+      api.addEventListener("videoConferenceJoined", () => {
+        updateConnectionStatus(true, "TRANSMISSION ACTIVE");
+      });
+
+      api.addEventListener("videoConferenceLeft", () => {
+        updateConnectionStatus(false, "TRANSMISSION ENDED");
+      });
+
+      api.addEventListener("audioMuteStatusChanged", e => {
+        console.log("Audio muted:", e.muted);
+      });
+
+      api.addEventListener("readyToClose", () => {
+        updateConnectionStatus(false, "DISCONNECTED");
+      });
+    };
+
+    document.getElementById("copyBtn").onclick = () => {
+      const linkField = document.getElementById("shareLink");
+      linkField.select();
+      linkField.setSelectionRange(0, 99999);
+      document.execCommand("copy");
+      const btn = document.getElementById("copyBtn");
+      btn.textContent = "COPIED!";
+      setTimeout(() => btn.textContent = "COPY LINK", 1500);
+    };
+
+    document.getElementById("roomName").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        document.getElementById("joinBtn").click();
+      }
+    });
+
+    document.getElementById("displayName").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        document.getElementById("joinBtn").click();
+      }
+    });
+  </script>
+</body>
+</html>
