@@ -3,7 +3,12 @@ from aiohttp import web
 from bidict import bidict
 import socketio
 from pathlib import Path
-from adventure_handler import AdventureHandler
+# Import custom modules
+from adventure.handler import AdventureHandler
+from adventure.player import Player, PlayerStats
+from adventure.ai_dm import AIDungeonMaster
+from adventure.dice import roll_dice
+
 from persistence.chatdb import (
     init_db, get_or_create_user, get_or_create_room, save_global_message,
     save_room_message, save_private_message, get_or_create_inbox,
