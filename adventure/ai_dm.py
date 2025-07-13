@@ -2,10 +2,22 @@ import json
 import asyncio
 import os
 from typing import Dict, List, Optional, Any
-from openai import OpenAI
+from mistralai import Mistral
 from .dice import roll_dice
 
-aimodel="qwen/qwen3-235b-a22b"
+
+
+api_key = os.getenv('MISTRAL_API_KEY')
+if not api_key:
+    try:
+        # Read API key from secrets.txt
+        with open(os.path.join(os.path.dirname(__file__), '..', 'secrets.txt'), 'r') as f:
+            api_key = f.read().strip()
+    except FileNotFoundError:
+        print("No Mistral API key found")
+        
+
+model = "mistral-small-latest"
 
 class StoryState:
     def __init__(self):
@@ -31,10 +43,7 @@ class AIDungeonMaster:
         self.room_id = room_id
         self.story_state = StoryState()
         self.players = {}
-        self.client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=""
-        )
+        self.client = Mistral(api_key=api_key)
         self.conversation_history = []
         self.system_prompt = self._build_system_prompt()
         
@@ -135,8 +144,8 @@ Current game state will be provided with each request."""
         )
 
         try:
-            response = self.client.chat.completions.create(
-                model=aimodel,
+            response = self.client.chat.complete(
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000,
                 temperature=0.3
@@ -217,8 +226,8 @@ Current game state will be provided with each request."""
         This is a game of Dungeons and Dragons and With respect to the story {self.story_state.current_scene} and the current action taken {result}, make description of the current scenario in a interative and captivating way.
         """
         try:
-            response = self.client.chat.completions.create(
-                model=aimodel,
+            response = self.client.chat.complete(
+                model=model,
                 messages=[
                     {"role": "user", "content": story_update}
                 ],
@@ -241,8 +250,8 @@ Current game state will be provided with each request."""
         prompt = self._build_prompt(context, player_action, action_result)
 
         try:
-            response = self.client.chat.completions.create(
-                model=aimodel,
+            response = self.client.chat.complete(
+                model=model,
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": prompt}
@@ -333,8 +342,8 @@ Current game state will be provided with each request."""
         """
 
         try:
-            response = self.client.chat.completions.create(
-                model=aimodel,
+            response = self.client.chat.complete(
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
                 max_tokens=1000
@@ -358,8 +367,8 @@ Current game state will be provided with each request."""
         )
 
         try:
-            response = self.client.chat.completions.create(
-                model=aimodel,
+            response = self.client.chat.complete(
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000,
                 temperature=0.7
@@ -388,8 +397,8 @@ Current game state will be provided with each request."""
         )
 
         try:
-            response = self.client.chat.completions.create(
-                model=aimodel,
+            response = self.client.chat.complete(
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000,
                 temperature=0.9
@@ -408,7 +417,7 @@ Current game state will be provided with each request."""
             "players": {sid: player.to_dict() for sid, player in self.players.items()},
             "story_state": {
                 "current_scene": self.story_state.current_scene,
-                "environment": self.story_state.environment,
+               # "environment": self.story_state.environment,
                 "time": self.story_state.time,
                 "weather": self.story_state.weather,
                 "encounter_active": self.story_state.encounter_active
