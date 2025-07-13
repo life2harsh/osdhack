@@ -71,6 +71,8 @@ RetroHub offers multiple visual themes to enhance the retro BBS experience:
 
 ## Installation
 
+NOTE: For the AI functionality, you need to add a MistralAI API Key which you need to use either as environment variable or save it in a file named `secrets.txt`
+
 ### Prerequisites
 
 - Python 3.8+
