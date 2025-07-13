@@ -187,7 +187,12 @@ function showBBSMainMenu() {
     if (socket) {
         socket.emit('get_users');
         socket.emit('check_rooms');
+
+        setTimeout(() => socket.emit('check_rooms'), 500);
     }
+
+    updateAIStatus();
+    initializeAIRoomsDisplay();
 
     startUsersAutoRefresh();
 
@@ -251,7 +256,7 @@ function executeBBSChoice() {
 
    switch (choice) {
       case '1':
-        openGameWindow('space-force', 'https://spaceshooter-seven.vercel.app/');
+    openGameWindow('space', 'https://spaceshooter-seven.vercel.app/');
     break;
        case '2':
         openGameWindow('tank', 'https://tank-lyart.vercel.app/');
@@ -343,14 +348,23 @@ case '6':
            logout();
            break;
        default:
-           if (choice) {
-               hideBBSMainMenu();
-               document.getElementById('commandInput').value = choice.toLowerCase();
-               executeCommand();
-           }
-           break;
-   }
-}
+
+    if (choice.startsWith('TOPIC:') || choice.startsWith('T:')) {
+        const topicName = choice.replace(/^(TOPIC:|T:)/, '').trim();
+        if (topicName) {
+            hideBBSMainMenu();
+            executeQuickCommand(`/join topic:${topicName.toLowerCase()}`);
+        }
+    } else {
+
+        if (choice) {
+            hideBBSMainMenu();
+            document.getElementById('commandInput').value = choice.toLowerCase();
+            executeCommand();
+        }
+    }
+    break;
+}}
 
 function showSystemInfo() {
    const info = `
@@ -2802,4 +2816,509 @@ function displaySuggestedActions(actions) {
     actions.forEach((action, index) => {
         logMessage(`${index + 1}. ${action}`, 'adventure-msg');
     });
+}
+
+let aiRoomData = {};
+let lastAIUpdate = null;
+
+function showBBSMainMenuEnhanced() {
+
+    document.getElementById('bootScreen').style.display = 'none';
+    const mainInterface = document.getElementById('mainInterface');
+    mainInterface.style.visibility = 'hidden';
+    mainInterface.style.opacity = '0';
+    mainInterface.style.pointerEvents = 'none';
+
+    document.getElementById('pmConversationsMenu').style.display = 'none';
+    document.getElementById('pmChatInterface').style.display = 'none';
+    document.getElementById('bbsMainMenu').style.display = 'block';
+
+    updateBBSStatus();
+    updateBBSTime();
+
+    if (socket) {
+        socket.emit('get_users');
+        socket.emit('check_rooms');
+
+        socket.emit('get_ai_room_updates');
+    }
+
+    updateRoomAIStatus();
+
+    startUsersAutoRefresh();
+    if (window.bbsTimeInterval) {
+        clearInterval(window.bbsTimeInterval);
+    }
+    window.bbsTimeInterval = setInterval(updateBBSTime, 1000);
+}
+
+socket.on('ai_room_update', (data) => {
+    updateRoomWithAI(data.room_name, data.description, data.keywords, data.activity);
+});
+
+socket.on('ai_room_analysis', (data) => {
+
+    aiRoomData[data.room_name] = data;
+    updateRoomDisplay(data.room_name, data);
+    lastAIUpdate = new Date();
+    updateLastAIUpdateTime();
+});
+
+socket.on('topic_room_created', (data) => {
+
+    addTopicRoomToUI(data);
+    flashRoomAIIndicator();
+});
+
+function updateRoomWithAI(roomName, newDescription, keywords = [], activity = {}) {
+    const roomMappings = {
+        'general': { id: 'generalRoomDesc', indicator: 'generalAI' },
+        'support': { id: 'supportRoomDesc', indicator: 'supportAI' },
+        'files': { id: 'filesRoomDesc', indicator: 'filesAI' },
+        'lounge': { id: 'loungeRoomDesc', indicator: 'loungeAI' }
+    };
+
+    const mapping = roomMappings[roomName.toLowerCase()];
+    if (mapping) {
+        const descElement = document.getElementById(mapping.id);
+        const indicatorElement = document.getElementById(mapping.indicator);
+        const roomElement = descElement.closest('.bbs-room-item');
+
+        if (descElement && newDescription) {
+
+            roomElement.classList.add('ai-updating');
+            setTimeout(() => roomElement.classList.remove('ai-updating'), 2000);
+
+            descElement.textContent = newDescription;
+
+            if (indicatorElement) {
+                indicatorElement.style.display = 'block';
+            }
+
+            roomElement.classList.add('ai-enhanced');
+
+            if (keywords && keywords.length > 0) {
+                addKeywordsToRoom(roomElement, keywords);
+            }
+
+            if (activity && activity.message_count) {
+                addActivityToRoom(roomElement, activity);
+            }
+        }
+    }
+}
+
+function addKeywordsToRoom(roomElement, keywords) {
+
+    const existingKeywords = roomElement.querySelector('.topic-keywords');
+    if (existingKeywords) {
+        existingKeywords.remove();
+    }
+
+    const keywordsDiv = document.createElement('div');
+    keywordsDiv.className = 'topic-keywords';
+    keywordsDiv.textContent = `🏷️ ${keywords.slice(0, 3).join(', ')}`;
+
+    roomElement.appendChild(keywordsDiv);
+}
+
+function addActivityToRoom(roomElement, activity) {
+    const roomTopic = roomElement.querySelector('.bbs-room-topic');
+
+    const existingMeta = roomElement.querySelector('.topic-room-meta');
+    if (existingMeta) {
+        existingMeta.remove();
+    }
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'topic-room-meta';
+    metaDiv.innerHTML = `
+        <span>${activity.message_count || 0} messages today</span>
+        <span class="topic-activity">${activity.active_users || 0} active</span>
+    `;
+
+    roomElement.appendChild(metaDiv);
+}
+
+function addTopicRoomToUI(roomData) {
+    const container = document.getElementById('dynamicTopicRooms');
+    if (!container) return;
+
+    const topicName = roomData.room_name.replace('topic:', '');
+    const roomId = `topic_${topicName.replace(/\s+/g, '_')}`;
+
+    if (document.getElementById(roomId)) {
+        return; 
+    }
+
+    const roomElement = document.createElement('div');
+    roomElement.className = 'bbs-room-item topic-room';
+    roomElement.id = roomId;
+    roomElement.onclick = () => joinTopicRoom(roomData.room_name);
+
+    roomElement.innerHTML = `
+        <div class="bbs-room-id">
+            🤖 ${topicName.toUpperCase()}
+            <span style="font-size: 0.7em; opacity: 0.7;">(AI-Generated)</span>
+        </div>
+        <div class="bbs-room-topic">${roomData.description || 'AI-generated topic room'}</div>
+        <div class="topic-room-meta">
+            <span>${roomData.message_count || 0} messages</span>
+            <span class="topic-activity">NEW</span>
+        </div>
+    `;
+
+    if (roomData.keywords && roomData.keywords.length > 0) {
+        addKeywordsToRoom(roomElement, roomData.keywords);
+    }
+
+    container.appendChild(roomElement);
+
+    setTimeout(() => {
+        roomElement.style.transform = 'translateX(0)';
+        roomElement.style.opacity = '1';
+    }, 100);
+}
+
+function joinTopicRoom(roomName) {
+    hideBBSMainMenu();
+    executeQuickCommand(`/join ${roomName}`);
+}
+
+function updateRoomAIStatus() {
+    const led = document.getElementById('roomAILed');
+    const status = document.getElementById('roomAIStatus');
+
+    if (led && status) {
+        if (isConnected && socket) {
+            led.classList.add('connected');
+            status.textContent = 'AI Analysis: Active';
+        } else {
+            led.classList.remove('connected');
+            status.textContent = 'AI Analysis: Offline';
+        }
+    }
+}
+
+function flashRoomAIIndicator() {
+    const led = document.getElementById('roomAILed');
+    if (led) {
+        led.style.animation = 'pulse-primary 0.5s ease-in-out 3';
+        setTimeout(() => {
+            led.style.animation = '';
+        }, 1500);
+    }
+}
+
+function updateLastAIUpdateTime() {
+    const updateElement = document.getElementById('lastAIUpdate');
+    if (updateElement && lastAIUpdate) {
+        const timeStr = lastAIUpdate.toLocaleTimeString();
+        updateElement.textContent = `Last AI update: ${timeStr}`;
+    }
+}
+
+function executeBBSChoiceEnhanced() {
+    const input = document.getElementById('bbsCommandInput');
+    const choice = input.value.trim().toUpperCase();
+    input.value = '';
+
+    switch (choice) {
+
+        default:
+
+            if (choice.startsWith('TOPIC:') || choice.startsWith('T:')) {
+                const topicName = choice.replace(/^(TOPIC:|T:)/, '').trim();
+                if (topicName) {
+                    hideBBSMainMenu();
+                    executeQuickCommand(`/join topic:${topicName.toLowerCase()}`);
+                }
+            } else {
+
+                if (choice) {
+                    hideBBSMainMenu();
+                    document.getElementById('commandInput').value = choice.toLowerCase();
+                    executeCommand();
+                }
+            }
+            break;
+    }
+}
+
+function requestAIRoomUpdates() {
+    if (socket && isConnected) {
+        socket.emit('get_ai_room_updates');
+    }
+}
+
+setInterval(() => {
+    if (document.getElementById('bbsMainMenu').style.display === 'block') {
+        requestAIRoomUpdates();
+    }
+}, 120000); 
+
+socket.on('connect', () => {
+
+    updateRoomAIStatus();
+    requestAIRoomUpdates();
+});
+
+socket.on('disconnect', () => {
+
+    updateRoomAIStatus();
+});
+
+function logout() {
+
+    aiRoomData = {};
+    lastAIUpdate = null;
+    const container = document.getElementById('dynamicTopicRooms');
+    if (container) {
+        container.innerHTML = '';
+    }
+}
+let aiTopicRooms = [];
+
+function showBBSMainMenuWithAI() {
+
+    document.getElementById('bootScreen').style.display = 'none';
+    const mainInterface = document.getElementById('mainInterface');
+    mainInterface.style.visibility = 'hidden';
+    mainInterface.style.opacity = '0';
+    mainInterface.style.pointerEvents = 'none';
+
+    document.getElementById('pmConversationsMenu').style.display = 'none';
+    document.getElementById('pmChatInterface').style.display = 'none';
+    document.getElementById('bbsMainMenu').style.display = 'block';
+
+    updateBBSStatus();
+    updateBBSTime();
+
+    if (socket) {
+        socket.emit('get_users');
+        socket.emit('check_rooms');
+
+        requestTopicRooms();
+    }
+
+    updateAIStatus();
+
+    startUsersAutoRefresh();
+    if (window.bbsTimeInterval) {
+        clearInterval(window.bbsTimeInterval);
+    }
+    window.bbsTimeInterval = setInterval(updateBBSTime, 1000);
+}
+
+function requestTopicRooms() {
+    if (socket && isConnected) {
+
+        socket.emit('check_rooms');
+    }
+}
+
+socket.on('room_list', (data) => {
+    if (data && data.rooms) {
+
+        let roomNames = [];
+        if (data.rooms.length > 0 && typeof data.rooms[0] === 'object') {
+            roomNames = data.rooms.map(r => r.name || r);
+        } else {
+            roomNames = data.rooms;
+        }
+        logMessage(`JOINED ROOMS: ${roomNames.join(', ') || 'NONE'}`, 'system-msg');
+
+        const sidebarRoomList = document.getElementById('rooms');
+        if (sidebarRoomList) {
+            if (data.rooms.length === 0) {
+                sidebarRoomList.innerHTML = '<li><em>No rooms joined</em></li>';
+            } else {
+                sidebarRoomList.innerHTML = data.rooms.map(r => {
+                    if (typeof r === 'object') {
+                        const name = r.name || 'Unknown';
+                        const desc = r.description || 'No description';
+                        return `<li><strong>${name}</strong><br><small>${desc}</small></li>`;
+                    } else {
+                        return `<li>${r}</li>`;
+                    }
+                }).join('');
+            }
+        }
+
+        const topicRooms = data.rooms.filter(room => {
+            const roomName = typeof room === 'object' ? room.name : room;
+            return roomName && roomName.startsWith('topic:');
+        });
+
+        displayTopicRoomsInBBS(topicRooms);
+    } else {
+        logMessage('JOINED ROOMS: NONE', 'system-msg');
+    }
+});
+
+function displayTopicRoomsInBBS(topicRooms) {
+    const container = document.getElementById('dynamicTopicRooms');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (!topicRooms || topicRooms.length === 0) {
+        return; 
+    }
+
+    topicRooms.forEach(room => {
+        const roomData = typeof room === 'object' ? room : { name: room, description: 'AI-generated room' };
+        const topicName = roomData.name.replace('topic:', '');
+        const roomId = `topic_${topicName.replace(/\s+/g, '_')}`;
+
+        if (document.getElementById(roomId)) return;
+
+        const roomElement = document.createElement('div');
+        roomElement.className = 'bbs-room-item topic-room';
+        roomElement.id = roomId;
+        roomElement.onclick = () => joinTopicRoom(roomData.name);
+
+        roomElement.innerHTML = `
+            <div class="bbs-room-id">
+                🤖 ${topicName.toUpperCase()}
+                <span style="font-size: 0.7em; opacity: 0.7;">(AI-Generated)</span>
+            </div>
+            <div class="bbs-room-topic">${roomData.description || 'AI-generated topic discussion'}</div>
+            <div class="topic-room-meta">
+                <span>Active Topic Room</span>
+                <span class="topic-activity">AI</span>
+            </div>
+        `;
+
+        container.appendChild(roomElement);
+    });
+}
+
+function joinTopicRoom(roomName) {
+    hideBBSMainMenu();
+    executeQuickCommand(`/join ${roomName}`);
+}
+
+socket.on('server_message', (data) => {
+    const message = data['text from server'] || data.text || data.data;
+
+    if (message && message.includes('copied to topic:')) {
+
+        const match = message.match(/topic:(\w+)/);
+        if (match) {
+            const topicName = match[1];
+            addTopicRoomToAvailableRooms(topicName);
+        }
+    }
+
+    logMessage(`[SYSTEM]: ${message}`, 'server-msg');
+});
+
+function addTopicRoomToAvailableRooms(topicName) {
+    const container = document.getElementById('dynamicTopicRooms');
+    if (!container) return;
+
+    const roomId = `available_topic_${topicName.replace(/\s+/g, '_')}`;
+
+    if (document.getElementById(roomId)) return;
+
+    const roomElement = document.createElement('div');
+    roomElement.className = 'bbs-room-item topic-room';
+    roomElement.id = roomId;
+    roomElement.onclick = () => joinTopicRoomFromAvailable(`topic:${topicName.toLowerCase()}`);
+
+    roomElement.innerHTML = `
+        <div class="bbs-room-id">
+            🤖 ${topicName.toUpperCase()}
+            <span style="font-size: 0.7em; opacity: 0.7;">(AI-Generated)</span>
+        </div>
+        <div class="bbs-room-topic">Auto-created room for discussing ${topicName}</div>
+        <div class="topic-room-meta">
+            <span>New AI Topic Room</span>
+            <span class="topic-activity">LIVE</span>
+        </div>
+    `;
+
+    container.appendChild(roomElement);
+
+    roomElement.style.opacity = '0';
+    roomElement.style.transform = 'translateX(-20px)';
+    setTimeout(() => {
+        roomElement.style.transition = 'all 0.5s ease';
+        roomElement.style.opacity = '1';
+        roomElement.style.transform = 'translateX(0)';
+    }, 100);
+
+    flashAIIndicator();
+}
+
+function joinTopicRoomFromAvailable(roomName) {
+    hideBBSMainMenu();
+    executeQuickCommand(`/join ${roomName}`);
+}
+
+function flashAIIndicator() {
+    const led = document.getElementById('roomAILed');
+    if (led) {
+        led.style.animation = 'pulse-primary 0.5s ease-in-out 3';
+        setTimeout(() => {
+            led.style.animation = '';
+        }, 1500);
+    }
+
+    const updateInfo = document.getElementById('lastAIUpdate');
+    if (updateInfo) {
+        updateInfo.textContent = `Last AI update: ${new Date().toLocaleTimeString()}`;
+    }
+}
+
+socket.on('server_message', (data) => {
+    const message = data['text from server'] || data.text || data.data;
+
+    const patterns = [
+        /topic:(\w+)/,                                    
+        /copied to topic:(\w+)/,                          
+        /Auto-joined .+ to topic:(\w+)/,                 
+        /messages about (\w+) are being copied/          
+    ];
+
+    for (const pattern of patterns) {
+        const match = message.match(pattern);
+        if (match) {
+            const topicName = match[1];
+            addTopicRoomToAvailableRooms(topicName);
+            break;
+        }
+    }
+
+    logMessage(`[SYSTEM]: ${message}`, 'server-msg');
+});
+
+function initializeAIRoomsDisplay() {
+    updateAIStatus();
+
+    const container = document.getElementById('dynamicTopicRooms');
+    if (container && container.children.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: var(--primary-dark); font-style: italic; padding: 15px; opacity: 0.7;">
+                No AI topic rooms yet.<br>
+                <small>Start chatting about topics to let the AI create rooms!</small>
+            </div>
+        `;
+    }
+}
+
+function updateAIStatus() {
+    const led = document.getElementById('roomAILed');
+    const status = document.getElementById('roomAIStatus');
+
+    if (led && status) {
+        if (isConnected && socket) {
+            led.classList.add('connected');
+            status.textContent = 'AI Analysis: Monitoring';
+        } else {
+            led.classList.remove('connected');
+            status.textContent = 'AI Analysis: Offline';
+        }
+    }
 }
