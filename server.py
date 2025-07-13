@@ -70,9 +70,6 @@ STATIC_DIR = Path(__file__).with_name("static")
 
 # Serve a basic index page - now check authentication
 async def index(request):
-    user = await get_current_user(request)
-    if not user['is_authenticated']:
-        return web.HTTPFound('/login')
     return web.FileResponse(STATIC_DIR / "index.html")
 
 async def audio(request):
