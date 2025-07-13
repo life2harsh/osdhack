@@ -2,7 +2,7 @@
 
 A modern reimagining of classic Bulletin Board Systems (BBS) built with contemporary web technologies. RetroHub combines the nostalgic social experience of old-school BBSes with modern features like real-time chat, multiplayer games, AI-powered adventures, and voice communication.
 
-![Terminal Green Theme](assets/Terminal_Green.jpeg)
+![Amber Fallout](assets/Amber_Fallout.jpeg)
 
 ## Features
 
