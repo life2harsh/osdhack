@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Python Socket.IO Chat</title>
+
+  <!-- Socket.IO browser bundle – keep major version in sync with your server -->
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+          integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+"
+          crossorigin="anonymous"></script>
+
+  <style>
+    /* ultra-light layout */
+    html, body { height:100%; margin:0; font-family:sans-serif; }
+    #chat { display:flex; flex-direction:column; height:100%; margin-right:240px; }
+    #messages { flex:1; overflow-y:auto; padding:10px; background:#fff; }
+    form { display:flex; border-top:1px solid #ddd; }
+    form input { flex:1; padding:10px; border:none; font-size:1em; }
+    form button { padding:0 20px; border:none; cursor:pointer; }
+    
+    #fileUploadBtn { 
+      background:#28a745; color:white; border:none; 
+      padding:10px 15px; cursor:pointer; margin-left:5px;
+      border-radius:4px; font-size:14px; font-weight:bold;
+      transition: background-color 0.2s;
+    }
+    #fileUploadBtn:hover { background:#218838; }
+    
+    #fileUploadModal {
+      position:fixed; inset:0; background:rgba(0,0,0,0.7);
+      display:none; align-items:center; justify-content:center;
+      z-index:1000;
+    }
+    
+    #fileUploadContent {
+      background:white; padding:20px; border-radius:8px;
+      max-width:400px; width:90%;
+    }
+    
+    #fileUploadContent h3 { margin-top:0; }
+    #fileUploadContent button { margin:5px; padding:8px 12px; }
+    #fileUploadContent .file-info { 
+      margin:10px 0; padding:10px; background:#f5f5f5; 
+      border-radius:4px; font-size:14px;
+    }
+    .msg { margin:4px 0; }
+    .msg.private { background:#fff4d6; }
+    .msg.system  { font-style:italic; color:#666; }
+
+    #sidebar {
+      position:fixed; right:0; top:0; bottom:0; width:220px;
+      background:#fafafa; border-left:1px solid #ddd;
+      padding:10px; overflow-y:auto;
+    }
+    #sidebar h3 { margin-top:0; }
+
+    /* full-screen semi-transparent overlay */
+    #login {
+      position:fixed; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      background:rgba(0,0,0,0.6); color:#fff;
+    }
+    #login input { padding:8px; font-size:1em; }
+    #login button { margin-top:10px; padding:6px 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- login overlay - hidden by default since auth is handled server-side -->
+  <div id="login" style="display: none;">
+    <h2>Authentication Required</h2>
+    <p>Please <a href="/login">login</a> or <a href="/register">register</a> to continue.</p>
+  </div>
+
+  <!-- main chat UI (hidden until after join) -->
+  <div id="chat" hidden>
+    <div id="messages"></div>
+    <form id="send">
+      <input id="input" autocomplete="off"
+             placeholder="Type here…  (/users /pm bob hi /join room1 …)">
+      <button type="submit">Send</button>
+      <button type="button" id="fileUploadBtn">📎 File</button>
+    </form>
+    <aside id="sidebar">
+      <h3>Users</h3><ul id="users"></ul>
+      <h3>Rooms</h3><ul id="rooms"></ul>
+      <p style="font-size:.75em;color:#888">
+        Commands:<br>
+        /users /rooms /pm_list /history [target]<br>
+        /history_room <room> /history_pm <user><br>
+        /pm user msg /pm user file<br>
+        /newroom room [description] /join room /leave room<br>
+        /room room msg /room room file<br>
+        file (to send file to global chat)<br>
+        <br>
+        💡 Use the 📎 File button for easier uploads!
+      </p>
+    </aside>
+  </div>
+
+  <!-- File Upload Modal -->
+  <div id="fileUploadModal">
+    <div id="fileUploadContent">
+      <h3>Upload File</h3>
+      <div>
+        <label>Send to:</label><br>
+        <input type="radio" name="uploadTarget" value="global" checked> Global Chat<br>
+        <input type="radio" name="uploadTarget" value="private"> Private Message to: 
+        <input type="text" id="privateUserInput" placeholder="username" disabled><br>
+        <input type="radio" name="uploadTarget" value="room"> Room: 
+        <input type="text" id="roomNameInput" placeholder="room name" disabled><br>
+        <input type="radio" name="uploadTarget" value="adventure"> Adventure: 
+        <input type="text" id="adventureRoomInput" placeholder="adventure room" disabled>
+      </div>
+      <div style="margin:15px 0;">
+        <input type="file" id="modalFileInput" style="width:100%;">
+      </div>
+      <div id="selectedFileInfo" class="file-info" style="display:none;">
+        <strong>Selected file:</strong> <span id="fileName"></span><br>
+        <strong>Size:</strong> <span id="fileSize"></span>
+      </div>
+      <div style="text-align:right;">
+        <button id="cancelUpload">Cancel</button>
+        <button id="confirmUpload" disabled>Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+document.addEventListener('DOMContentLoaded', () => {
+  // shorthand
+  const $ = id => document.getElementById(id);
+  const addMsg = (html, cls='') => {
+    const div = Object.assign(document.createElement('div'),
+                              { className:`msg ${cls}`, innerHTML:html });
+    $('messages').appendChild(div);
+    $('messages').scrollTop = $('messages').scrollHeight;
+  };
+
+  // support for files & unified envelope
+  let username;
+  let pendingFile = null, pendingReceiver = null, pendingEmitEvent = null;
+
+  // File upload modal elements
+  const fileUploadModal = document.getElementById('fileUploadModal');
+  const fileUploadBtn = document.getElementById('fileUploadBtn');
+  const cancelUpload = document.getElementById('cancelUpload');
+  const confirmUpload = document.getElementById('confirmUpload');
+  const modalFileInput = document.getElementById('modalFileInput');
+  const selectedFileInfo = document.getElementById('selectedFileInfo');
+  const fileName = document.getElementById('fileName');
+  const fileSize = document.getElementById('fileSize');
+  const privateUserInput = document.getElementById('privateUserInput');
+  const roomNameInput = document.getElementById('roomNameInput');
+  const adventureRoomInput = document.getElementById('adventureRoomInput');
+
+  function makePayload(receiver, content, msgType='text') {
+    msgType = msgType.toLowerCase();
+    if (msgType !== 'text' && msgType !== 'file') {
+      console.error('Invalid message type', msgType);
+      return null;
+    }
+    return {
+      sender_name: username,
+      receiver_name: receiver,
+      type: msgType,
+      data: content,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  function sendPendingFile() {
+    if (!pendingFile || !pendingReceiver || !pendingEmitEvent) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      const payload = makePayload(
+        pendingReceiver,
+        { filename: pendingFile.name, blob: base64 },
+        'file'
+      );
+      socket.emit(pendingEmitEvent, payload);
+      pendingFile = pendingReceiver = pendingEmitEvent = null;
+      fileInput.value = '';
+    };
+    reader.readAsDataURL(pendingFile);
+  }
+
+  // create hidden file input
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+      pendingFile = fileInput.files[0];
+      sendPendingFile();
+    }
+  });
+
+  // File upload modal handlers
+  fileUploadBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    fileUploadModal.style.display = 'flex';
+  });
+
+  cancelUpload.addEventListener('click', () => {
+    fileUploadModal.style.display = 'none';
+    modalFileInput.value = '';
+    selectedFileInfo.style.display = 'none';
+    confirmUpload.disabled = true;
+  });
+
+  modalFileInput.addEventListener('change', () => {
+    const file = modalFileInput.files[0];
+    if (file) {
+      fileName.textContent = file.name;
+      fileSize.textContent = formatFileSize(file.size);
+      selectedFileInfo.style.display = 'block';
+      confirmUpload.disabled = false;
+    } else {
+      selectedFileInfo.style.display = 'none';
+      confirmUpload.disabled = true;
+    }
+  });
+
+  // Enable/disable target inputs based on radio selection
+  document.querySelectorAll('input[name="uploadTarget"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      privateUserInput.disabled = radio.value !== 'private';
+      roomNameInput.disabled = radio.value !== 'room';
+      adventureRoomInput.disabled = radio.value !== 'adventure';
+    });
+  });
+
+  confirmUpload.addEventListener('click', () => {
+    const file = modalFileInput.files[0];
+    if (!file) return;
+
+    const target = document.querySelector('input[name="uploadTarget"]:checked').value;
+    let receiver, emitEvent;
+
+    switch (target) {
+      case 'global':
+        receiver = 'all';
+        emitEvent = 'chat_message';
+        break;
+      case 'private':
+        receiver = privateUserInput.value.trim();
+        if (!receiver) {
+          alert('Please enter a username for private message');
+          return;
+        }
+        emitEvent = 'private_message';
+        break;
+      case 'room':
+        receiver = roomNameInput.value.trim();
+        if (!receiver) {
+          alert('Please enter a room name');
+          return;
+        }
+        emitEvent = 'room_message';
+        break;
+      case 'adventure':
+        receiver = adventureRoomInput.value.trim();
+        if (!receiver) {
+          alert('Please enter an adventure room name');
+          return;
+        }
+        emitEvent = 'adventure_message';
+        break;
+    }
+
+    // Set up for sending
+    pendingFile = file;
+    pendingReceiver = receiver;
+    pendingEmitEvent = emitEvent;
+    
+    // Close modal
+    fileUploadModal.style.display = 'none';
+    modalFileInput.value = '';
+    selectedFileInfo.style.display = 'none';
+    confirmUpload.disabled = true;
+    
+    // Send the file
+    sendPendingFile();
+  });
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // connect
+  const socket = io("http://localhost:8080");
+
+  // elements
+  const loginDiv      = $('login');
+  const chatDiv       = $('chat');
+  const messageInput  = $('input');
+
+  // Authentication handling
+  let currentUser = null;
+  
+  // Check authentication status when page loads
+  async function checkAuthStatus() {
+    try {
+      const response = await fetch('/auth/status');
+      const user = await response.json();
+      return user;
+    } catch (error) {
+      console.error('Error checking auth status:', error);
+      return { is_authenticated: false };
+    }
+  }
+  
+  // Initialize the page
+  async function initializePage() {
+    const user = await checkAuthStatus();
+    
+    if (!user.is_authenticated) {
+      // Not authenticated, redirect to login
+      loginDiv.style.display = 'flex';
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
+      return;
+    }
+    
+    // User is authenticated, set up the page
+    currentUser = user;
+    loginDiv.style.display = 'none';
+    chatDiv.style.display = 'flex';
+    messageInput.focus();
+    
+    // Add user info and logout button
+    addLogoutButton(user);
+    
+    // Connect to Socket.IO now that we're authenticated
+    connectSocket();
+  }
+  
+  // Connect to Socket.IO and authenticate
+  function connectSocket() {
+    // Check authentication status on connect
+    socket.on('connect', () => {
+      console.log('Connected to server');
+    });
+    
+    // Handle authentication required from server
+    socket.on('auth_required', () => {
+      console.log('Server requesting authentication');
+      // Send authentication info
+      socket.emit('authenticate', { type: 'session' });
+    });
+    
+    // Handle username request (fallback)
+    socket.on('request_username', () => {
+      console.log('Server requesting username');
+      if (currentUser) {
+        socket.emit('set_username', {
+          username: currentUser.username,
+          is_anonymous: currentUser.is_anonymous
+        });
+      }
+    });
+    
+    // Handle authentication status from Socket.IO
+    socket.on('auth_status', (data) => {
+      console.log('Socket.IO authentication status:', data);
+      if (data.authenticated) {
+        username = data.username;
+        console.log('Socket.IO authenticated as:', username);
+      }
+    });
+    
+    // Handle authentication errors
+    socket.on('auth_error', (data) => {
+      console.error('Authentication error:', data.error);
+      window.location.href = '/login';
+    });
+    
+    // Handle rooms restored
+    socket.on('rooms_restored', (data) => {
+      console.log('Rooms restored:', data.rooms);
+      if (data.rooms && data.rooms.length > 0) {
+        addMsg(`[SERVER] Restored to rooms: ${data.rooms.join(', ')}`, "system");
+      }
+    });
+  }
+  
+  function addLogoutButton(user) {
+    // Add a logout button to the sidebar if it doesn't exist
+    let logoutBtn = document.getElementById('logoutBtn');
+    if (!logoutBtn) {
+      logoutBtn = document.createElement('button');
+      logoutBtn.id = 'logoutBtn';
+      logoutBtn.textContent = 'Logout';
+      logoutBtn.style.cssText = 'margin-top: 10px; padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;';
+      logoutBtn.onclick = async () => {
+        try {
+          await fetch('/logout', { method: 'POST' });
+          window.location.href = '/login';
+        } catch (error) {
+          console.error('Logout failed:', error);
+        }
+      };
+      
+      const sidebar = document.getElementById('sidebar');
+      const userInfo = document.createElement('div');
+      userInfo.innerHTML = `<p><strong>User:</strong> ${user.username} ${user.is_anonymous ? '(Guest)' : ''}</p>`;
+      sidebar.insertBefore(userInfo, sidebar.firstChild);
+      sidebar.insertBefore(logoutBtn, sidebar.firstChild);
+    }
+  }
+  
+  // Initialize when page loads
+  initializePage();
+
+  // message handlers
+  socket.on("server_message", d =>
+    addMsg(`[SERVER] ${d['text from server']||d.text||d.data}`, "system")
+  );
+
+  socket.on("chat_message", d => {
+    if (d.type === 'file') {
+      const { filename, blob } = d.data;
+      const arr = atob(blob).split('').map(c=>c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([new Uint8Array(arr)]));
+      addMsg(`[FILE] <a href="${url}" download="${filename}">${filename}</a>`);
+    } else {
+      addMsg(`<b>${d.sender_name}:</b> ${d.data}`);
+    }
+  });
+
+  // Handle chat history with files
+  socket.on("chat_history", d => {
+    addMsg("<b>=== CHAT HISTORY ===</b>", "system");
+    const messages = d.messages || [];
+    messages.reverse().forEach(msg => {
+      const username = msg.useruid || 'Unknown';
+      if (msg.message_type === 'file' && msg.filename && msg.blob) {
+        const arr = atob(msg.blob).split('').map(c=>c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([new Uint8Array(arr)]));
+        addMsg(`<b>${username}:</b> [FILE] <a href="${url}" download="${msg.filename}">${msg.filename}</a>`);
+      } else {
+        addMsg(`<b>${username}:</b> ${msg.message || ''}`);
+      }
+    });
+    addMsg("<b>=== END HISTORY ===</b>", "system");
+  });
+
+  // Handle room history with files
+  socket.on("room_history", d => {
+    const room = d.room || '';
+    addMsg(`<b>=== ROOM ${room} HISTORY ===</b>`, "system");
+    const messages = d.messages || [];
+    messages.reverse().forEach(msg => {
+      const username = msg.useruid || 'Unknown';
+      if (msg.message_type === 'file' && msg.filename && msg.blob) {
+        const arr = atob(msg.blob).split('').map(c=>c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([new Uint8Array(arr)]));
+        addMsg(`<b>[${room}] ${username}:</b> [FILE] <a href="${url}" download="${msg.filename}">${msg.filename}</a>`);
+      } else {
+        addMsg(`<b>[${room}] ${username}:</b> ${msg.message || ''}`);
+      }
+    });
+    addMsg(`<b>=== END HISTORY ===</b>`, "system");
+  });
+
+  // Handle adventure history with files
+  socket.on("adventure_history", d => {
+    const adventureId = d.adventure_id || "Unknown";
+    addMsg(`<b>=== ADVENTURE ${adventureId} HISTORY ===</b>`, "system");
+    d.messages.reverse().forEach(msg => {
+      if (msg.message_type === 'file' && msg.filename) {
+        addMsg(`<b>[ADVENTURE ${adventureId} - ${msg.useruid}]:</b> [FILE: ${msg.filename}]`, "room");
+      } else {
+        addMsg(`<b>[ADVENTURE ${adventureId} - ${msg.useruid}]:</b> ${msg.message}`, "room");
+      }
+    });
+    addMsg(`<b>=== END HISTORY ===</b>`, "system");
+  });
+
+  socket.on("private_message", d => {
+    if (d.type==='file') {
+      const { filename, blob } = d.data;
+      const arr = atob(blob).split('').map(c=>c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([new Uint8Array(arr)]));
+      addMsg(`<b>[PM FILE from ${d.sender_name}]</b> <a href="${url}" download="${filename}">${filename}</a>`, "private");
+    } else {
+      addMsg(`<b>Private from ${d.sender_name}:</b> ${d.data}`, "private");
+    }
+  });
+
+  socket.on("room_message", d => {
+    if (d.type==='file') {
+      const { filename, blob } = d.data;
+      const arr = atob(blob).split('').map(c=>c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([new Uint8Array(arr)]));
+      addMsg(`<b>[${d.receiver_name} FILE] ${d.sender_name}:</b> <a href="${url}" download="${filename}">${filename}</a>`);
+    } else {
+      addMsg(`<b>[${d.receiver_name}] ${d.sender_name}:</b> ${d.data}`);
+    }
+  });
+
+  // Handle PM list
+  socket.on("pm_list", d => {
+    const conversations = d.conversations || [];
+    if (conversations.length === 0) {
+      addMsg("<b>=== PRIVATE MESSAGE CONVERSATIONS ===</b>", "system");
+      addMsg("No private message conversations found", "system");
+      addMsg("<b>=== END PM LIST ===</b>", "system");
+    } else {
+      addMsg("<b>=== PRIVATE MESSAGE CONVERSATIONS ===</b>", "system");
+      conversations.forEach(conv => {
+        const username = conv.useruid || 'Unknown';
+        const messageCount = conv.message_count || 0;
+        const lastMessage = conv.last_message_time || 'Never';
+        addMsg(`${username} - ${messageCount} messages (last: ${lastMessage})`, "system");
+      });
+      addMsg("<b>=== END PM LIST ===</b>", "system");
+    }
+  });
+
+  // Handle private message history
+  socket.on("private_history", d => {
+    const username = d.username || 'Unknown';
+    addMsg(`<b>=== PRIVATE MESSAGES WITH ${username} ===</b>`, "system");
+    d.messages.reverse().forEach(msg => {
+      const sender = msg.useruid || 'Unknown';
+      if (msg.message_type === 'file' && msg.filename) {
+        addMsg(`<b>[PM ${sender}]:</b> [FILE: ${msg.filename}]`, "private");
+      } else {
+        addMsg(`<b>[PM ${sender}]:</b> ${msg.message}`, "private");
+      }
+    });
+    addMsg(`<b>=== END HISTORY ===</b>`, "system");
+  });
+
+  socket.on("users_list", d=>
+    $('users').innerHTML = d.users.map(u=>`<li>${u}</li>`).join("")
+  );
+  socket.on("room_list", d=> {
+    if (!d.rooms || d.rooms.length === 0) {
+      $('rooms').innerHTML = '<li><em>No rooms joined</em></li>';
+    } else {
+      $('rooms').innerHTML = d.rooms.map(r => {
+        if (typeof r === 'object') {
+          const name = r.name || 'Unknown';
+          const desc = r.description || 'No description';
+          return `<li><strong>${name}</strong><br><small>${desc}</small></li>`;
+        } else {
+          // Backward compatibility
+          return `<li>${r}</li>`;
+        }
+      }).join("");
+    }
+  });
+
+  // adventure events
+  socket.on("adventure_invitation", d =>
+    addMsg(`<b>[INVITE to ${d.room_id}]</b> ${d.message}`, "system")
+  );
+
+  socket.on("adventure_message", d => {
+    const prefix = `[ADVENTURE ${d.room_id} – ${d.sender_name||''} (${d.sender_role||''})] `;
+    if (["join","dm_disconnect","player_disconnect"].includes(d.type)) {
+      addMsg(`${prefix}⚠️ ${d.message}`, "system");
+    } else if (d.type==='file') {
+      const { filename, blob } = d.data;
+      const arr = atob(blob).split('').map(c=>c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([new Uint8Array(arr)]));
+      addMsg(`${prefix}[FILE] <a href="${url}" download="${filename}">${filename}</a>`);
+    } else {
+      addMsg(`${prefix}${d.data}`);
+    }
+  });
+
+  socket.on("adventure_info", d => {
+    addMsg(
+      `<b>[ADVENTURE INFO – ${d.room_id}]</b><br>` +
+      `Story: ${d.story}<br>` +
+      `DM: ${d.dm}<br>` +
+      `Players: ${d.players.join(', ')||'None'}<br>` +
+      `Invited: ${d.invited_users.join(', ')||'None'}`,
+      "system"
+    );
+  });
+
+  // send form handler
+  $('send').addEventListener('submit', e => {
+    e.preventDefault();
+    const txt = messageInput.value.trim();
+    if(!txt) return;
+    messageInput.value = "";
+
+    const [cmd, ...rest] = txt.split(" ");
+    switch(cmd){
+      case "/users":
+        socket.emit("get_users");
+        break;
+      case "/rooms":
+        socket.emit("check_rooms");
+        break;
+      case "/pm_list":
+        socket.emit("get_pm_list");
+        break;
+      case "/history_room":
+        if(rest.length === 1) {
+          socket.emit("get_chat_history", {type: "room", target: rest[0]});
+        } else {
+          addMsg("Usage: /history_room <room_name>", "system");
+        }
+        break;
+      case "/history_pm":
+        if(rest.length === 1) {
+          socket.emit("get_chat_history", {type: "private", target: rest[0]});
+        } else {
+          addMsg("Usage: /history_pm <username>", "system");
+        }
+        break;
+      case "/history":
+        if(rest.length === 0) {
+          // Default global history
+          socket.emit("get_chat_history");
+        } else if(rest.length === 1) {
+          const target = rest[0];
+          if(/^\d+$/.test(target)) {
+            // Adventure history (numeric ID)
+            socket.emit("get_chat_history", {type: "adventure", target: target});
+          } else {
+            // Ambiguous - provide guidance
+            addMsg(`Specify history type for '${target}':`, "system");
+            addMsg("/history_room <name> - for room history", "system");
+            addMsg("/history_pm <username> - for private message history", "system");
+          }
+        } else {
+          addMsg("Usage: /history [target] or use /history_room or /history_pm for clarity", "system");
+        }
+        break;
+      case "file":
+        pendingReceiver   = 'all';
+        pendingEmitEvent  = 'chat_message';
+        fileInput.click();
+        break;
+      case "/pm":
+        // FIX: allow simple "/pm user message" or "/pm user file" syntax
+        if(rest.length >= 2){
+          const to = rest[0];
+          if(rest[1] === 'file'){
+            pendingReceiver = to;
+            pendingEmitEvent = "private_message";
+            fileInput.click();
+          } else {
+            socket.emit("private_message", makePayload(to, rest.slice(1).join(" "))); // default 'text'
+          }
+        }
+        break;
+      case "/newroom":
+        if(rest.length >= 1) {
+          const roomName = rest[0];
+          const description = rest.slice(1).join(" ") || "";
+          socket.emit("create_room", { room_name: roomName, description: description });
+        } else {
+          addMsg("Usage: /newroom <room_name> [description]", "system");
+        }
+        break;
+      case "/join":
+        socket.emit("join_room", { room:rest[0] });
+        break;
+      case "/leave":
+        socket.emit("leave_room", { room:rest[0] });
+        break;
+      case "/room":
+        // FIX: allow simple "/room room message" or "/room room file"
+        if(rest.length >= 2){
+          const room = rest[0];
+          if(rest[1] === 'file'){
+            pendingReceiver = room;
+            pendingEmitEvent = "room_message";
+            fileInput.click();
+          } else {
+            socket.emit("room_message", makePayload(room, rest.slice(1).join(" ")));
+          }
+        }
+        break;
+      case "/startadventure":
+        if(rest.length>=2){
+          socket.emit("start_adventure", {
+            story: rest[0],
+            users: rest[1].split(',').map(u=>u.trim())
+          });
+        }
+        break;
+      case "/joinadventure":
+        if(rest.length>=2){
+          socket.emit("join_adventure", { room_id:rest[0], role:rest[1] });
+        }
+        break;
+      case "/adventureinfo":
+        if(rest.length>=1){
+          socket.emit("get_adventure_info", { room_id:rest[0] });
+        }
+        break;
+      case "/adventure":
+        // FIX: allow simple "/adventure room message" or "/adventure room file"
+        if(rest.length >= 2){
+          const room = rest[0];
+          if(rest[1] === 'file'){
+            pendingReceiver = room;
+            pendingEmitEvent = "adventure_message";
+            fileInput.click();
+          } else {
+            socket.emit("adventure_message", makePayload(room, rest.slice(1).join(" ")));
+          }
+        }
+        break;
+      default:
+        socket.emit("chat_message", makePayload('all', txt, 'text'));
+    }
+  });
+});
+</script>
+
+ </body>
+</html>
+
