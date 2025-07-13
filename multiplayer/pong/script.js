@@ -52,7 +52,7 @@ const canvas = document.getElementById('pong');
       }
 
       try {
-        ws = new WebSocket('ws://localhost:8765');
+        ws = new WebSocket('wss://jha.jpoop.in:4200');
         connectionStatus.textContent = 'Connecting...';
         connectionStatus.className = 'connection-status';
       } catch (error) {
