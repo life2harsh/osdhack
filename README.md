@@ -90,24 +90,6 @@ The server will start on the default port and initialize all necessary databases
    - Begin AI-powered text adventures
    - Join voice chat rooms
 
-### Running Multiplayer Game Servers
-
-For multiplayer games, start the respective game servers:
-
-**Pong:**
-
-```bash
-cd multiplayer/pong
-python server.py
-```
-
-**Tank Wars:**
-
-```bash
-cd multiplayer/Tank
-python server.py
-```
-
 ### Command Line Client
 
 For testing or automation, use the command-line client:
