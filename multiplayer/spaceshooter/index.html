@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Force - Multiplayer Space Shooter</title>
+    <link rel = "stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="viewport"></canvas>
+
+    <div class="connection-status disconnected" id="connection-status">Offline</div>
+
+    <div class="boss-health" id="boss-health">
+        <div class="boss-health-bar" id="boss-health-bar"></div>
+    </div>
+    <div class="boss-name" id="boss-name">BOSS</div>
+
+    <div id="game_over" class="state-ui-container">
+        <div class="console">
+            <div class="ui-text ui-text--heading">GAME OVER!</div>
+            <div id="final_score" class="ui-text"></div> 
+            <div class="ui-text">PRESS [ENTER] TO PLAY AGAIN!</div>
+            <div class="ui-text">PRESS [R] TO GO TO TITLE SCREEN</div>
+        </div>
+    </div>
+
+    <div id="title" class="state-ui-container" style="display: flex;">
+        <div class="console">
+            <div class="ui-text ui-text--heading">SPACE FORCE</div>
+            <div class="ui-text">CHOOSE GAME MODE:</div>
+            <div class="ui-text">PRESS [ENTER] FOR SINGLE PLAYER</div>
+            <div class="ui-text">PRESS [M] FOR MULTIPLAYER</div>
+            <div class="ui-text"></div>
+            <div class="ui-text">CONTROLS:</div>
+            <div class="ui-text">PRESS [ARROW KEYS] TO MOVE</div>
+            <div class="ui-text">PRESS [SPACE] TO SHOOT</div>
+            <div class="ui-text">PRESS [R] TO REVIVE TEAMMATE (costs 500 points)</div>
+            <div class="ui-text">PRESS [ESC] TO RETURN TO MENU</div>
+        </div>
+    </div>
+
+    <div id="game" class="state-ui-container">
+        <div class="banner">
+            <div id="score" class="ui-text">SCORE: 0</div>
+            <div id="lives" class="ui-text">LIVES: 3</div>
+            <div id="kills" class="ui-text">KILLS: 0</div>
+            <div id="teammate-status" class="ui-text"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src = 'script.js'></script>
+</body>
+</html>
